@@ -1,0 +1,29 @@
+# ─────────────────────────────────────────────────────────────────
+# Face Recognition System - Python Dependencies (DeepFace version)
+# Install with:  pip install -r requirements.txt
+#
+# NO C++ compiler needed. NO dlib. NO Visual Studio.
+# Works on Windows, Linux, and macOS out of the box.
+# ─────────────────────────────────────────────────────────────────
+
+# Core face recognition (installs TensorFlow automatically)
+deepface==0.0.93
+
+# Required by DeepFace for the ArcFace model
+tf-keras
+
+# Camera and image processing
+opencv-python==4.9.0.80
+
+# Admin dashboard
+streamlit==1.35.0
+
+# Data management and export
+pandas==2.2.2
+openpyxl==3.1.2
+
+# Image handling
+Pillow==10.3.0
+
+# Numerical computing (face embeddings)
+numpy==1.26.4
