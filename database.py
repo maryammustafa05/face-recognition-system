@@ -74,6 +74,16 @@ def initialize_database():
         )
     """)
 
+    cursor.execute("""
+         CREATE TABLE IF NOT EXISTS face_angles(
+                   id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                   person_id     TEXT NOT NULL,
+                   face_encoding TEXT NOT NULL,
+                   angle_label   TEXT DEFAULT 'front', --front,left,right etc
+                   image_path    TEXT DEFAULT '',
+                   added_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+                   )
+    """)
     conn.commit()
     conn.close()
     print("[DB] Database initialized successfully.")
@@ -98,6 +108,10 @@ def register_person(person_id, name, department, image_path, face_encoding):
             INSERT INTO persons (person_id, name, department, image_path, face_encoding)
             VALUES (?, ?, ?, ?, ?)
         """, (person_id, name, department, image_path, encoding_json))
+        cursor.execute("""
+        INSERT INTO face_angles (person_id, face_encoding, angle_label, image_path)
+            VALUES (?, ?, 'front', ?)
+        """, (person_id, encoding_json, image_path))
         conn.commit()
         return True, f"✅ '{name}' registered successfully!"
     except sqlite3.IntegrityError:
@@ -421,3 +435,64 @@ def reject_pending(pending_id):
     )
     conn.commit()
     conn.close()
+
+def add_face_angle(person_id,face_encoding,angle_label,image_path=""):
+        """Add an additional face angle for an existing person."""
+        conn=get_connection()
+        cursor=conn.cursor()
+        try:
+            encoding_json=json.dumps(
+                face_encoding.tolist() if hasattr(face_encoding,'tolist') else list(face_encoding)
+            )
+            cursor.execute("""
+               INSERT INTO face_angles (person_id, face_encoding, angle_label, image_path)
+               VALUES (?, ?, ?, ?)
+            """,(person_id, encoding_json, angle_label, image_path))
+            conn.commit()
+            return True, f"✅ Angle '{angle_label}' added successfully!"
+        except Exception as e:
+            return False, f"❌ Error: {str(e)}"
+        finally:
+            conn.close()
+    
+def get_face_angles(person_id):
+        conn=get_connection()
+        cursor=conn.cursor()
+        cursor.execute(""" 
+         SELECT * FROM face_angles WHERE person_id=? ORDER BY added_at ASC
+         """,(person_id,))
+        rows = cursor.fetchall()
+        conn.close()
+        return rows
+    
+def load_all_face_encodings():
+        import numpy as np
+        conn=get_connection()
+        cursor=conn.cursor()
+        cursor.execute("""
+        SELECT fa.face_encoding, fa.angle_label, p.person_id, p.name, p.department, p.image_path
+        FROM face_angles fa
+        JOIN persons p ON fa.person_id = p.person_id
+        WHERE p.is_active = 1
+        ORDER BY p.person_id, fa.added_at
+    """)
+        rows=cursor.fetchall()
+        conn.close()
+        encodings=[]
+        metadata=[]
+        for row in rows:
+         try:
+            encoding = np.array(json.loads(row["face_encoding"]))
+            encodings.append(encoding)
+            metadata.append({
+                "person_id":  row["person_id"],
+                "name":       row["name"],
+                "department": row["department"],
+                "image_path": row["image_path"],
+                "angle":      row["angle_label"],
+            })
+         except Exception as e:
+            print(f"[DB] Warning: Could not load angle for {row['person_id']}: {e}")
+
+        print(f"[DB] Loaded {len(encodings)} face angle(s) for {len(set(m['person_id'] for m in metadata))} person(s).")
+        return encodings, metadata

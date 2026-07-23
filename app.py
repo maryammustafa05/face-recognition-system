@@ -18,7 +18,8 @@ from database import (
     get_all_logs, get_log_summary,
     verify_admin,
     get_pending_approvals, get_pending_count,
-    approve_pending, reject_pending
+    approve_pending, reject_pending,
+    add_face_angle,get_face_angles
 )
 from face_utils import (
     get_face_encoding_from_image, get_face_encoding_from_frame,
@@ -461,6 +462,62 @@ def page_manage():
                         if st.session_state.camera_running and st.session_state.camera:
                             st.session_state.camera.reload_faces()
                         st.rerun()
+                # ── Add Face Angle Section ────────────────────────────────────
+            st.markdown("**📐 Face Angles**")
+            angles = get_face_angles(person["person_id"])
+            st.caption(f"{len(angles)} angle(s) registered: " +
+                      ", ".join([a["angle_label"] for a in angles]))
+
+            st.markdown("### ➕ Add New Angle")
+
+            angle_label = st.selectbox(
+    "Angle",
+    ["front", "left", "right", "up", "down", "with glasses", "different lighting"],
+    key=f"angle_label_{person['person_id']}"
+)
+
+            angle_photo = st.file_uploader(
+    "Upload photo",
+    type=["jpg", "jpeg", "png"],
+    key=f"angle_upload_{person['person_id']}"
+)
+
+            if st.button("➕ Add Angle", key=f"add_angle_{person['person_id']}"):
+                    if not angle_photo:
+                        st.error("Please upload a photo.")
+                    else:
+                        import tempfile
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+                            tmp.write(angle_photo.getbuffer())
+                            tmp_path = tmp.name
+
+                        encoding, msg = get_face_encoding_from_image(tmp_path)
+
+                        if encoding is None:
+                            os.unlink(tmp_path)  # ← delete AFTER encoding check
+                            st.error(f"❌ {msg}")
+                        else:
+                            # Save image BEFORE deleting temp file
+                            image_path = save_face_image(
+                                tmp_path,
+                                f"{person['person_id']}_{angle_label}",
+                                is_file=True  # ← True because it's a file path
+                            )
+                            os.unlink(tmp_path)  # ← delete AFTER saving
+
+                            success, message = add_face_angle(
+                                person_id=person["person_id"],
+                                face_encoding=encoding,
+                                angle_label=angle_label,
+                                image_path=image_path
+                            )
+                            if success:
+                                st.success(message)
+                                if st.session_state.camera_running and st.session_state.camera:
+                                    st.session_state.camera.reload_faces()
+                                st.rerun()
+                            else:
+                                st.error(message)
 
             # Edit form
             if st.session_state.get(f"edit_{person['person_id']}", False):
