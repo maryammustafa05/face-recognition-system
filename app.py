@@ -439,7 +439,6 @@ def page_manage():
             col1, col2, col3 = st.columns([2, 2, 1])
 
             with col1:
-                # Show face image if available
                 if person["image_path"] and os.path.exists(person["image_path"]):
                     st.image(person["image_path"], width=150)
                 else:
@@ -462,48 +461,52 @@ def page_manage():
                         if st.session_state.camera_running and st.session_state.camera:
                             st.session_state.camera.reload_faces()
                         st.rerun()
-                # ── Add Face Angle Section ────────────────────────────────────
-            st.markdown("**📐 Face Angles**")
+
+            st.markdown("---")
+
+            # ── Face Angles Section ───────────────────────────────────────
             angles = get_face_angles(person["person_id"])
-            st.caption(f"{len(angles)} angle(s) registered: " +
-                      ", ".join([a["angle_label"] for a in angles]))
+            st.markdown(f"**📐 Face Angles:** {len(angles)} registered — " +
+                       ", ".join([a["angle_label"] for a in angles]))
 
-            st.markdown("### ➕ Add New Angle")
+            st.markdown("**➕ Add New Angle**")
 
-            angle_label = st.selectbox(
-    "Angle",
-    ["front", "left", "right", "up", "down", "with glasses", "different lighting"],
-    key=f"angle_label_{person['person_id']}"
-)
+            # Use st.form to properly capture button clicks inside expander
+            with st.form(key=f"angle_form_{person['person_id']}"):
+                angle_label = st.selectbox(
+                    "Select Angle",
+                    ["left", "right", "up", "down", "with glasses", "different lighting"],
+                    key=f"angle_sel_{person['person_id']}"
+                )
+                angle_photo = st.file_uploader(
+                    "Upload photo for this angle",
+                    type=["jpg", "jpeg", "png"],
+                    key=f"angle_up_{person['person_id']}"
+                )
+                submitted = st.form_submit_button("➕ Add Angle", use_container_width=True)
 
-            angle_photo = st.file_uploader(
-    "Upload photo",
-    type=["jpg", "jpeg", "png"],
-    key=f"angle_upload_{person['person_id']}"
-)
-
-            if st.button("➕ Add Angle", key=f"add_angle_{person['person_id']}"):
+                if submitted:
                     if not angle_photo:
-                        st.error("Please upload a photo.")
+                        st.error("Please upload a photo first.")
                     else:
                         import tempfile
                         with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
                             tmp.write(angle_photo.getbuffer())
                             tmp_path = tmp.name
 
-                        encoding, msg = get_face_encoding_from_image(tmp_path)
+                        with st.spinner("Processing face..."):
+                            encoding, msg = get_face_encoding_from_image(tmp_path)
 
                         if encoding is None:
-                            os.unlink(tmp_path)  # ← delete AFTER encoding check
+                            os.unlink(tmp_path)
                             st.error(f"❌ {msg}")
                         else:
-                            # Save image BEFORE deleting temp file
                             image_path = save_face_image(
                                 tmp_path,
                                 f"{person['person_id']}_{angle_label}",
-                                is_file=True  # ← True because it's a file path
+                                is_file=True
                             )
-                            os.unlink(tmp_path)  # ← delete AFTER saving
+                            os.unlink(tmp_path)
 
                             success, message = add_face_angle(
                                 person_id=person["person_id"],
@@ -512,12 +515,14 @@ def page_manage():
                                 image_path=image_path
                             )
                             if success:
-                                st.success(message)
+                                st.success(f"✅ {angle_label} angle added for {person['name']}!")
                                 if st.session_state.camera_running and st.session_state.camera:
                                     st.session_state.camera.reload_faces()
                                 st.rerun()
                             else:
                                 st.error(message)
+
+            st.markdown("---")
 
             # Edit form
             if st.session_state.get(f"edit_{person['person_id']}", False):

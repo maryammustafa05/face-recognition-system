@@ -448,7 +448,9 @@ def add_face_angle(person_id,face_encoding,angle_label,image_path=""):
                INSERT INTO face_angles (person_id, face_encoding, angle_label, image_path)
                VALUES (?, ?, ?, ?)
             """,(person_id, encoding_json, angle_label, image_path))
+            print(f"[DB] Saving angle '{angle_label}' for {person_id}")
             conn.commit()
+            print(f"[DB] Saved successfully")
             return True, f"✅ Angle '{angle_label}' added successfully!"
         except Exception as e:
             return False, f"❌ Error: {str(e)}"
